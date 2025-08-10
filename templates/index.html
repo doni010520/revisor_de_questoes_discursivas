@@ -41,6 +41,12 @@
         .progress-messages p {
             margin-bottom: 0.25rem;
         }
+        /* Regras CSS diretas para a textarea */
+        textarea {
+            width: 100%;
+            min-height: 250px; /* Altura mínima para garantir visibilidade */
+            resize: vertical; /* Permite redimensionar verticalmente */
+        }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
@@ -65,9 +71,8 @@
                 <textarea 
                     id="texto" 
                     name="texto" 
-                    rows="20"  <!-- Aumentamos as linhas -->
                     required 
-                    class="shadow-sm appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out min-h-64" <!-- Adicionado min-h-64 -->
+                    class="shadow-sm appearance-none border rounded-lg py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out" 
                     placeholder="Ex: 'O art. 5º da CF/88 garante a inviolabilidade do direito à vida.'">
                 </textarea>
             </div>
@@ -83,8 +88,6 @@
     </div>
 
     <script>
-        // Removido: const dropZone = document.getElementById('dropZone');
-        // Removido: const fileInput = document.getElementById('arquivo_pdf');
         const textArea = document.getElementById('texto');
         const form = document.getElementById('revisorForm');
         const submitButton = document.getElementById('submitButton');
@@ -100,7 +103,6 @@
             progressMessages.classList.remove('hidden');
             progressMessages.innerHTML = ''; // Limpa mensagens anteriores
             submitButton.disabled = true; 
-            // Removido: dropZone.style.pointerEvents = 'none'; 
             textArea.disabled = true; 
         }
 
@@ -108,13 +110,8 @@
             loadingIndicator.classList.add('hidden');
             progressMessages.classList.add('hidden');
             submitButton.disabled = false;
-            // Removido: dropZone.style.pointerEvents = 'auto';
             textArea.disabled = false; 
-            // Limpa a textarea após o sucesso/finalização
-            textArea.value = '';
-            // Removido: fileInput.value = ''; 
-            // Removido: dropZone.querySelector('p:first-of-type').textContent = 'Arraste e solte o arquivo PDF ou DOCX aqui';
-            // Removido: dropZone.querySelector('p:last-of-type').textContent = 'ou clique para selecionar';
+            textArea.value = ''; // Limpa a textarea após o sucesso/finalização
         }
 
         function addProgressMessage(message) {
@@ -160,16 +157,6 @@
             addProgressMessage('Desconectado do servidor. Recarregue a página se necessário.');
         });
 
-        // Removido: Lógica de Drag and Drop
-        // Removido: ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => { ... });
-        // Removido: function preventDefaults (e) { ... }
-        // Removido: function highlight(e) { ... }
-        // Removido: function unhighlight(e) { ... }
-        // Removido: dropZone.addEventListener('drop', handleDrop, false);
-        // Removido: function handleDrop(e) { ... }
-        // Removido: dropZone.addEventListener('click', () => { ... });
-        // Removido: fileInput.addEventListener('change', () => { ... });
-
         // Lógica de envio do formulário via Socket.IO (apenas texto)
         form.addEventListener('submit', async (e) => {
             e.preventDefault(); 
@@ -185,9 +172,6 @@
             // Emite um evento WebSocket para o servidor com os dados do formulário
             socket.emit('start_revision', {
                 text_content: textArea.value,
-                // Removido: file_data: null,
-                // Removido: file_mimetype: null,
-                // Removido: filename: null
             });
         });
 

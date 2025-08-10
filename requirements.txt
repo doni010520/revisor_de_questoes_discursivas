@@ -1,0 +1,8 @@
+Flask
+requests
+reportlab
+PyPDF2
+python-docx
+Flask-SocketIO
+eventlet
+gunicorn

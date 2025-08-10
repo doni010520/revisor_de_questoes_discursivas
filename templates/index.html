@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Revisor de Texto com Gemini</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inclui a biblioteca Socket.IO para comunicação em tempo real -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+        }
+        /* Estilos para o spinner de carregamento */
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #3182ce; /* blue-500 */
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .hidden {
+            display: none;
+        }
+        .progress-messages {
+            max-height: 150px; /* Limita a altura para não ocupar muito espaço */
+            overflow-y: auto; /* Adiciona scroll se o conteúdo for muito longo */
+            background-color: #e2e8f0; /* bg-gray-200 */
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem; /* text-sm */
+            color: #2d3748; /* gray-800 */
+        }
+        .progress-messages p {
+            margin-bottom: 0.25rem;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-2xl">
+        <h1 class="text-4xl font-bold text-center text-gray-800 mb-8 rounded-lg">Revisão Legislativa ✨</h1>
+        
+        <!-- Removido enctype="multipart/form-data" -->
+        <form action="/revisar" method="post" class="space-y-6" id="revisorForm">
+            <!-- Indicador de Carregamento -->
+            <div id="loadingIndicator" class="hidden flex items-center justify-center space-x-3 mb-4 p-4 bg-blue-100 rounded-lg text-blue-800">
+                <div class="spinner"></div>
+                <span>Processando revisão... Por favor, aguarde.</span>
+            </div>
+
+            <!-- Área para Mensagens de Progresso -->
+            <div id="progressMessages" class="hidden progress-messages mb-4">
+                <!-- Mensagens de progresso serão inseridas aqui pelo JavaScript -->
+            </div>
+
+            <div class="mb-4">
+                <label for="texto" class="block text-gray-700 text-lg font-medium mb-2">Cole o texto para revisão aqui:</label>
+                <textarea 
+                    id="texto" 
+                    name="texto" 
+                    rows="15"  <!-- Aumentamos as linhas já que não há upload -->
+                    required 
+                    class="shadow-sm appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out"
+                    placeholder="Ex: 'O art. 5º da CF/88 garante a inviolabilidade do direito à vida.'">
+                </textarea>
+            </div>
+            
+            <button 
+                type="submit" 
+                class="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:shadow-lg transition duration-300 ease-in-out transform hover:scale-105"
+                id="submitButton"
+            >
+                Revisar Texto e Gerar PDF
+            </button>
+        </form>
+    </div>
+
+    <script>
+        // Removido: const dropZone = document.getElementById('dropZone');
+        // Removido: const fileInput = document.getElementById('arquivo_pdf');
+        const textArea = document.getElementById('texto');
+        const form = document.getElementById('revisorForm');
+        const submitButton = document.getElementById('submitButton');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const progressMessages = document.getElementById('progressMessages');
+
+        // Inicializa a conexão Socket.IO
+        const socket = io();
+
+        // Funções para controle da interface durante o processamento
+        function showProcessingState() {
+            loadingIndicator.classList.remove('hidden');
+            progressMessages.classList.remove('hidden');
+            progressMessages.innerHTML = ''; // Limpa mensagens anteriores
+            submitButton.disabled = true; 
+            // Removido: dropZone.style.pointerEvents = 'none'; 
+            textArea.disabled = true; 
+        }
+
+        function hideProcessingState() {
+            loadingIndicator.classList.add('hidden');
+            progressMessages.classList.add('hidden');
+            submitButton.disabled = false;
+            // Removido: dropZone.style.pointerEvents = 'auto';
+            textArea.disabled = false; 
+            // Limpa a textarea após o sucesso/finalização
+            textArea.value = '';
+            // Removido: fileInput.value = ''; 
+            // Removido: dropZone.querySelector('p:first-of-type').textContent = 'Arraste e solte o arquivo PDF ou DOCX aqui';
+            // Removido: dropZone.querySelector('p:last-of-type').textContent = 'ou clique para selecionar';
+        }
+
+        function addProgressMessage(message) {
+            const p = document.createElement('p');
+            p.textContent = message;
+            progressMessages.appendChild(p);
+            progressMessages.scrollTop = progressMessages.scrollHeight; // Scrolla para o final
+        }
+
+        // Eventos Socket.IO
+        socket.on('connect', () => {
+            console.log('Conectado ao servidor WebSocket.');
+            addProgressMessage('Conectado ao servidor.');
+        });
+
+        socket.on('progress_update', (data) => {
+            addProgressMessage(data.message);
+        });
+
+        socket.on('download_ready', (data) => {
+            addProgressMessage('Download pronto!');
+            // Cria um link para download do arquivo (Blob)
+            const blob = new Blob([new Uint8Array(data.file_data)], { type: data.mimetype });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = data.filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url); // Libera o URL do objeto
+            hideProcessingState(); // Esconde o indicador e reabilita tudo
+        });
+
+        socket.on('error_message', (data) => {
+            addProgressMessage(`Erro: ${data.message}`);
+            alert(`Erro na revisão: ${data.message}`);
+            hideProcessingState(); // Esconde o indicador e reabilita tudo
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Desconectado do servidor WebSocket.');
+            addProgressMessage('Desconectado do servidor. Recarregue a página se necessário.');
+        });
+
+        // Removido: Lógica de Drag and Drop
+        // Removido: ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => { ... });
+        // Removido: function preventDefaults (e) { ... }
+        // Removido: function highlight(e) { ... }
+        // Removido: function unhighlight(e) { ... }
+        // Removido: dropZone.addEventListener('drop', handleDrop, false);
+        // Removido: function handleDrop(e) { ... }
+        // Removido: dropZone.addEventListener('click', () => { ... });
+        // Removido: fileInput.addEventListener('change', () => { ... });
+
+        // Lógica de envio do formulário via Socket.IO (apenas texto)
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault(); 
+
+            // Validação: verifica se há texto
+            if (textArea.value.trim() === "") {
+                alert('Por favor, cole um texto para revisão.');
+                return;
+            }
+            
+            showProcessingState(); // Mostra o indicador e as mensagens de progresso
+
+            // Emite um evento WebSocket para o servidor com os dados do formulário
+            socket.emit('start_revision', {
+                text_content: textArea.value,
+                // Removido: file_data: null,
+                // Removido: file_mimetype: null,
+                // Removido: filename: null
+            });
+        });
+
+        // Oculta o indicador de carregamento quando a página é carregada
+        window.addEventListener('load', hideProcessingState);
+    </script>
+</body>
+</html>
